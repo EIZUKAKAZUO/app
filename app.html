@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>為替換算アプリ（修正版）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;background:#f4f6f8;margin:0;padding:24px;display:flex;justify-content:center;align-items:flex-start;min-height:100vh;}
+    .card{background:#fff;padding:24px;border-radius:12px;box-shadow:0 8px 30px rgba(2,6,23,.08);width:380px;}
+    h1{margin:0 0 12px;color:#0f172a;font-size:20px;}
+    select,input,button{width:100%;padding:10px;margin-top:10px;border-radius:8px;border:1px solid #e5e7eb;font-size:15px;}
+    button{background:#2563eb;color:#fff;border:0;cursor:pointer;}
+    button:disabled{opacity:.6;cursor:not-allowed;}
+    #result{margin-top:14px;font-weight:600;color:#0f172a}
+    .small{font-size:12px;color:#6b7280;margin-top:8px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>為替換算アプリ</h1>
+    <label>変換モード</label>
+    <select id="mode">
+      <option value="JPY_KRW">円 → ウォン (JPY → KRW)</option>
+      <option value="JPY_SGD">円 → シンガポールドル (JPY → SGD)</option>
+      <option value="KRW_JPY">ウォン → 円 (KRW → JPY)</option>
+      <option value="SGD_JPY">シンガポールドル → 円 (SGD → JPY)</option>
+    </select>
+
+    <label>金額</label>
+    <input id="amount" type="number" placeholder="金額を入力（例：1000）" min="0" step="any" />
+
+    <button id="convertBtn">換算する</button>
+
+    <div id="result" aria-live="polite"></div>
+    <div class="small">※データ提供：open.er-api.com（無料・APIキー不要）</div>
+  </div>
+
+  <script>
+    const modeMap = {
+      "JPY_KRW": {from:"JPY", to:"KRW"},
+      "JPY_SGD": {from:"JPY", to:"SGD"},
+      "KRW_JPY": {from:"KRW", to:"JPY"},
+      "SGD_JPY": {from:"SGD", to:"JPY"}
+    };
+
+    const btn = document.getElementById("convertBtn");
+    const resDiv = document.getElementById("result");
+
+    function format(n){ return Number(n).toLocaleString(undefined, {maximumFractionDigits: 2}); }
+
+    async function convert(){
+      const mode = document.getElementById("mode").value;
+      const amount = parseFloat(document.getElementById("amount").value);
+      if (isNaN(amount) || amount <= 0){ resDiv.textContent = "有効な金額を入力してください。"; return; }
+      const pair = modeMap[mode];
+      if (!pair){ resDiv.textContent = "モードが不正です。"; return; }
+
+      btn.disabled = true; btn.textContent = "換算中...";
+      resDiv.textContent = "";
+
+      try {
+        // 最新レートを取得
+        const url = `https://open.er-api.com/v6/latest/${pair.from}`;
+        const resp = await fetch(url, {cache:"no-store"});
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data || !data.rates || !data.rates[pair.to]) throw new Error("レート取得失敗");
+
+        const rate = data.rates[pair.to];
+        const converted = amount * rate;
+
+        let html = `${format(amount)} ${pair.from} は<br><b>${format(converted)}</b> ${pair.to} です。`;
+        html += `<br><small>（1 ${pair.from} = ${Number(rate).toFixed(4)} ${pair.to}）</small>`;
+        resDiv.innerHTML = html;
+
+      } catch (e) {
+        console.error(e);
+        resDiv.textContent = "換算に失敗しました。ネットワークを確認してください。";
+      } finally {
+        btn.disabled = false; btn.textContent = "換算する";
+      }
+    }
+
+    btn.addEventListener("click", convert);
+    document.getElementById("amount").addEventListener("keydown", (e)=>{ if(e.key==="Enter") convert(); });
+  </script>
+</body>
+</html>
